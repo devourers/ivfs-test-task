@@ -2,23 +2,27 @@
 #include <ivfs.h>
 
 void test3_read_func(TestTask::IVFS& ivfs, TestTask::File* f, char* buff_read){
-    ivfs.Read(f, buff_read, 100);
+    size_t err = ivfs.Read(f, buff_read, 100);
+    std::cerr << err << std::endl; //needed in order for windows to call function in release
 }
 
 void test3_write_func(TestTask::IVFS& ivfs, TestTask::File* f){
-    ivfs.Write(f, "I was waiting for mutex...\n", 100);
+    size_t err = ivfs.Write(f, "I was waiting for mutex...\n", 100);
+    std::cerr << err << std::endl; //needed in order for windows to call function in release
 }
 
 int main()
 {
+    //fix WIN!!!!!
+    //use all values otherwise calls are not called
     TestTask::IVFS ivfs = TestTask::IVFS();
 
 
     TestTask::File* savefile = ivfs.Create("savefile.txt");
-    ivfs.Write(savefile, "health: 10\n", 11);
+    size_t written_health = ivfs.Write(savefile, "health: 10\n", 11);
     TestTask::File* helloworld = ivfs.Create("helloworld.txt");
-    ivfs.Write(helloworld, "Hello World!\n", 25);
-    ivfs.Write(savefile, "ammo: 1\n", 8);
+    size_t written_helloword = ivfs.Write(helloworld, "Hello World!\n", 25);
+    size_t written_ammo = ivfs.Write(savefile, "ammo: 1\n", 8);
     ivfs.Close(savefile);
     ivfs.Close(helloworld);
 
@@ -28,13 +32,13 @@ int main()
     char buff_test1[128];
     size_t read_bytes_test1 = ivfs.Read(opened_savefile, buff_test1, 30);
     std::cout << "Test 1:" << std::endl << "read from savefile.txt " << std::endl <<
-                 buff_test1 << std::endl << "bytes: " << read_bytes_test1 << std::endl;
+                 buff_test1 << std::endl << "read bytes: " << read_bytes_test1 << std::endl << "written bytes: " << written_ammo + written_health << std::endl;
     std::cout << "-----" << std::endl;
     TestTask::File* opened_helloworld = ivfs.Open("helloworld.txt");
     char buff_test2[128];
     size_t read_bytes_test2 = ivfs.Read(opened_helloworld, buff_test2, 30);
     std::cout << "read from helloworld.txt " << std::endl <<
-                 buff_test2 << std::endl << "bytes: " << read_bytes_test2 << std::endl;
+                 buff_test2 << std::endl << "read bytes: " << read_bytes_test2 << std::endl << "written bytes: " << written_helloword << std::endl;
     ivfs.Close(opened_helloworld);
     ivfs.Close(opened_savefile);
 
@@ -66,8 +70,8 @@ int main()
     std::cout << "Read from thread 1: " << std::endl << buff_read << std::endl;
     ivfs.Close(test3_create_new_file);
     TestTask::File* reopen = ivfs.Open("mutex.txt");
-    ivfs.Read(reopen, buff_read_write, 100);
-    std::cout << "Wrote in thread 2: " << std::endl << buff_read_write << std::endl;
+    size_t test3_read = ivfs.Read(reopen, buff_read_write, 100);
+    std::cout << "Wrote in thread 2: " << std::endl << buff_read_write << std::endl << "read bytes: " << test3_read << std::endl;
     ivfs.Close(reopen);
     ivfs.CloseIVFS();
 

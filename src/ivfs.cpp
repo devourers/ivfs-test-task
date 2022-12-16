@@ -105,7 +105,7 @@ void write_free_chunks(std::ofstream& file, std::vector<size_t> free_chunks){
     }
 }
 
-
+//IVFS constructor
 IVFS::IVFS(){
     //IVFS -- data in contained in a single file via chunks
     /*
@@ -149,7 +149,9 @@ IVFS::IVFS(){
     }
 }
 
+//Opens file for reading if it exists, return nullptr otherwise.
 File* IVFS::Open(const char* name){
+    std::lock_guard<std::mutex> lock(write_mutex);
     if (index.count(name) == 0){
         return nullptr;
     }
@@ -169,7 +171,10 @@ File* IVFS::Open(const char* name){
     return res;
 }
 
+//Creates file if none exists, and overwrites file if it existed.
+//If file is opened as readonly -- return nullptr
 File* IVFS::Create(const char* name){
+    std::lock_guard<std::mutex> lock(write_mutex);
     if (opened.count(name) != 0){
         if (opened[name].second == mode::readonly){
             return nullptr;
@@ -220,6 +225,7 @@ File* IVFS::Create(const char* name){
     }
 }
 
+//Read function -- read len bytes to buff. Reading is begining from internal file pointer file_pos, which saved between reads.
 size_t IVFS::Read(File *f, char *buff, size_t len){
     std::lock_guard<std::mutex> lock(write_mutex);
     std::vector<size_t> locs = index[std::string(f->loc)].indexes;
