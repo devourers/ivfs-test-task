@@ -2,6 +2,7 @@
 
 
 namespace TestTask{
+
 const size_t CHUNK_SIZE = 8; //size of chunk in file
 std::mutex write_mutex; //mutex for parallel access to IVFS
 std::pair<std::string, FileLocation> parse_idx_line(const std::string& line){
@@ -244,6 +245,9 @@ size_t IVFS::Write(File *f, char *buff, size_t len){
     std::ofstream fs;
     std::lock_guard<std::mutex> lock(write_mutex);
     fs.open("files.cvfs", std::ios::out | std::ios::in);
+    if (!fs.is_open()){
+        fs.open("files.cvfs");
+    }
     size_t written = 0;
     while (written < len && written < strlen(buff)){
         if (f->file_size % CHUNK_SIZE != 0){
