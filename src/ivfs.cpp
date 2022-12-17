@@ -162,6 +162,7 @@ File* IVFS::Open(const char* name){
     res->loc = name;
     res->mode_ = mode::readonly;
     res->file_pos = 0;
+    res->file_size = index[std::string(name)].size;
     if (opened.count(name) != 0){
         opened[name].second++;
     }

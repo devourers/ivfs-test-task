@@ -13,6 +13,7 @@ void test3_write_func(TestTask::IVFS& ivfs, TestTask::File* f){
 
 int main()
 {
+    std::ios_base::sync_with_stdio(false);
     //fix WIN!!!!!
     //use all values otherwise calls are not called
     TestTask::IVFS ivfs = TestTask::IVFS();
@@ -29,18 +30,18 @@ int main()
     /* Test 1 */
     std::cout << "~~~~~TESTS~~~~~~" << std::endl;
     TestTask::File* opened_savefile = ivfs.Open("savefile.txt");
-    char buff_test1[128];
+    char buff_test1[128] = {0};
     size_t read_bytes_test1 = ivfs.Read(opened_savefile, buff_test1, 30);
     std::cout << "Test 1:" << std::endl << "read from savefile.txt " << std::endl <<
                  buff_test1 << std::endl << "read bytes: " << read_bytes_test1 << std::endl << "written bytes: " << written_ammo + written_health << std::endl;
-    std::cout << "-----" << std::endl;
     TestTask::File* opened_helloworld = ivfs.Open("helloworld.txt");
-    char buff_test2[128];
+    char buff_test2[128] = {0};
     size_t read_bytes_test2 = ivfs.Read(opened_helloworld, buff_test2, 30);
     std::cout << "read from helloworld.txt " << std::endl <<
                  buff_test2 << std::endl << "read bytes: " << read_bytes_test2 << std::endl << "written bytes: " << written_helloword << std::endl;
     ivfs.Close(opened_helloworld);
     ivfs.Close(opened_savefile);
+    std::cout << "----" << std::endl;
 
     /* Test 2 */
     TestTask::File* overwrite = ivfs.Create("savefile.txt");
@@ -50,18 +51,19 @@ int main()
                                             "Here is new file.\nIt's bigger.\tMuch bigger.", 100);
     ivfs.Close(inpalce_of_overwritten);
     TestTask::File* read_overwrite = ivfs.Open("new_savefile.txt");
-    char buff_test3[128];
+    char buff_test3[128] = {0};
     size_t read_bytes_test3 = ivfs.Read(read_overwrite, buff_test3, 100);
     std::cout << "Test 2: write and read to new_savefile.txt inplace of savefile.txt: " <<
                  std::endl << buff_test3 << std::endl << "bytes written: " << written_bytes_test3 <<
                  std::endl << "bytes read: " << read_bytes_test3 << std::endl;
     ivfs.Close(read_overwrite);
+    std::cout << "----" << std::endl;
 
     /* Test 3 */
     TestTask::File* test3_open_helloworld = ivfs.Open("helloworld.txt");
-    char buff_read[128];
+    char buff_read[128] = {0};
     TestTask::File* test3_create_new_file = ivfs.Create("mutex.txt");
-    char buff_read_write[128];
+    char buff_read_write[128] = {0};
     std::cout << "Test 3: parallel access to IVFS" << std::endl;
     std::thread t1(test3_read_func, std::ref(ivfs), test3_open_helloworld, buff_read);
     std::thread t2(test3_write_func, std::ref(ivfs), test3_create_new_file);
@@ -73,8 +75,7 @@ int main()
     size_t test3_read = ivfs.Read(reopen, buff_read_write, 100);
     std::cout << "Wrote in thread 2: " << std::endl << buff_read_write << std::endl << "read bytes: " << test3_read << std::endl;
     ivfs.Close(reopen);
+    ivfs.Close(test3_open_helloworld);
     ivfs.CloseIVFS();
-
-
     return 0;
 }
