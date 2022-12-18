@@ -287,7 +287,7 @@ size_t IVFS::Write(File *f, char *buff, size_t len){
     }
     fs.open("files.cvfs", std::ios::out | std::ios::in | std::ios::binary);
     if (!fs.is_open()){
-        fs.open("files.cvfs");
+        fs.open("files.cvfs", std::ios::binary);
     }
     size_t buff_len = strlen(buff);
     size_t written = 0;
