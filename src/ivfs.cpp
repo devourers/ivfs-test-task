@@ -5,6 +5,8 @@ namespace TestTask{
 
 const size_t CHUNK_SIZE = 8; //size of chunk in file
 std::mutex write_mutex; //mutex for parallel access to IVFS
+
+//helper functions
 std::pair<std::string, FileLocation> parse_idx_line(const std::string& line){
     size_t end_ = line.length() - 1;
     size_t start = 0;
@@ -105,22 +107,45 @@ void write_free_chunks(std::ofstream& file, std::vector<size_t> free_chunks){
     }
 }
 
+void put_chars(std::ofstream& fs, size_t& chunk_ind,
+               size_t& written, size_t& len, char* buff, size_t curr_chunk){
+    while (chunk_ind < 8 && written < len && written < strlen(buff)){
+        size_t actual_ind = CHUNK_SIZE * curr_chunk + chunk_ind;
+        fs.seekp(actual_ind);
+        chunk_ind++;
+        fs.put(buff[written]);
+        written++;
+    }
+}
+
+void padd_files(std::ofstream& fs, size_t& chunk_ind){
+    while (chunk_ind < 8){
+        fs.seekp(0, std::ios::cur);
+        fs.put(' ');
+        chunk_ind++;
+    }
+}
+
 //IVFS constructor
 IVFS::IVFS(){
     //IVFS -- data in contained in a single file via chunks
     /*
      * [awdadwadw...............][aawdaeqewq...........][qweqewqwe............].....
      * each chunks is 8 bytes, and idx file contatins indexes of chunks and file size
-     * creating new file takes first free chunk (or last_chunk+1 if no free chunks avaliable) and writes file in them.
+     * creating new file takes first free chunk
+     * (or last_chunk+1 if no free chunks avaliable) and writes file in them.
     */
     //index file -- contains all the data in format
 
     // filename%chunk indexes%file size (in bytes)
     std::ifstream index_str;
     index_str.open("index.idx");
-    //last_chunk.chnks -- file with single number -- last chunk index (if no free chunks -- write in (last_chunk +1) )
+
+    //last_chunk.chnks -- file with single number --
+    //last chunk index (if no free chunks -- write in (last_chunk +1) )
     std::ifstream lastchunk_str;
     lastchunk_str.open("last_chunk.chnks");
+
     //free.chnks -- file with free chunks
     std::ifstream freechunks_str;
     freechunks_str.open("free.chnks");
@@ -132,6 +157,7 @@ IVFS::IVFS(){
         std::string idx = idxbuff.str();
         parse_idx(idx, index);
     }
+    //parse lastchunk.chnks
     if (lastchunk_str.is_open()){
         std::stringstream lstchnkbuff;
         lstchnkbuff << lastchunk_str.rdbuf();
@@ -141,6 +167,7 @@ IVFS::IVFS(){
         }
         last_chunk = static_cast<size_t>(std::stoi(lstchnkbuff.str()));
     }
+    //parse free.chnks
     if (freechunks_str.is_open()){
         std::stringstream frchnksbuff;
         frchnksbuff << freechunks_str.rdbuf();
@@ -226,14 +253,18 @@ File* IVFS::Create(const char* name){
     }
 }
 
-//Read function -- read len bytes to buff. Reading is begining from internal file pointer file_pos, which saved between reads.
+//Read function -- read len bytes to buff.
+//Reading is begining from internal file pointer file_pos, which saved between reads.
 size_t IVFS::Read(File *f, char *buff, size_t len){
+    if (f->mode_ == mode::writeonly){
+        return 0;
+    }
     std::lock_guard<std::mutex> lock(write_mutex);
     std::vector<size_t> locs = index[std::string(f->loc)].indexes;
     size_t sz = index[std::string(f->loc)].size;
     std::ifstream fs;
     size_t ind = f->file_pos;
-    fs.open("files.cvfs");
+    fs.open("files.cvfs", std::ios::binary);
     char ch;
     while (ind < len && ind < sz ){
         size_t chunk_ind = ind / CHUNK_SIZE;
@@ -251,39 +282,28 @@ size_t IVFS::Read(File *f, char *buff, size_t len){
 size_t IVFS::Write(File *f, char *buff, size_t len){
     std::ofstream fs;
     std::lock_guard<std::mutex> lock(write_mutex);
-    fs.open("files.cvfs", std::ios::out | std::ios::in);
+    if (f->mode_ == mode::readonly){
+        return 0;
+    }
+    fs.open("files.cvfs", std::ios::out | std::ios::in | std::ios::binary);
     if (!fs.is_open()){
         fs.open("files.cvfs");
     }
+    size_t buff_len = strlen(buff);
     size_t written = 0;
-    while (written < len && written < strlen(buff)){
+    while (written < len && written < buff_len){
         if (f->file_size % CHUNK_SIZE != 0){
-            size_t curr_chunk = index[std::string(f->loc)].indexes[index[std::string(f->loc)].indexes.size() - 1];
+            size_t curr_chunk = index[std::string(f->loc)].
+                    indexes[index[std::string(f->loc)].indexes.size() - 1];
             size_t chunk_ind = f->file_size % CHUNK_SIZE;
-            while (chunk_ind < 8 && written < len && written < strlen(buff)){
-                size_t actual_ind = CHUNK_SIZE * curr_chunk + chunk_ind;
-                fs.seekp(actual_ind);
-                chunk_ind++;
-                fs.put(buff[written]);
-                written++;
-            }
+            put_chars(fs, chunk_ind, written, len, buff, curr_chunk);
         }
         if (free_chunks.size() > 0){
             size_t curr_chunk = free_chunks[0];
             size_t chunk_ind = 0;
-            while (chunk_ind < 8 && written < len && written < strlen(buff)){
-                size_t actual_ind = CHUNK_SIZE * curr_chunk + chunk_ind;
-                fs.seekp(actual_ind);
-                chunk_ind++;
-                fs.put(buff[written]);
-                written++;
-            }
+            put_chars(fs, chunk_ind, written, len, buff, curr_chunk);
             if (chunk_ind < 8){
-                while (chunk_ind < 8){
-                    fs.seekp(0, std::ios::cur);
-                    fs.put(' ');
-                    chunk_ind++;
-                }
+                padd_files(fs, chunk_ind);
             }
             index[std::string(f->loc)].indexes.push_back(curr_chunk);
             free_chunks.erase(free_chunks.begin());
@@ -292,19 +312,9 @@ size_t IVFS::Write(File *f, char *buff, size_t len){
         else{
             size_t curr_chunk = last_chunk;
             size_t chunk_ind = 0;
-            while (chunk_ind < 8 && written < len && written < strlen(buff)){
-                size_t actual_ind = CHUNK_SIZE * curr_chunk + chunk_ind;
-                fs.seekp(actual_ind, std::ios::beg);
-                chunk_ind++;
-                fs.put(buff[written]);
-                written++;
-            }
+            put_chars(fs, chunk_ind, written, len, buff, curr_chunk);
             if (chunk_ind < 8){
-                while (chunk_ind < 8){
-                    fs.seekp(0, std::ios::cur);
-                    fs.put(' ');
-                    chunk_ind++;
-                }
+                padd_files(fs, chunk_ind);
             }
             index[std::string(f->loc)].indexes.push_back(curr_chunk);
             last_chunk++;
@@ -325,22 +335,28 @@ void IVFS::Close(File *f){
 }
 
 void IVFS::CloseIVFS(){
+
     //Close IVFS and save index, last chunk, free chunks
     std::ofstream index_str;
     index_str.open("index.idx");
-    //last_chunk.chnks -- file with single number -- last chunk index (if no free chunks -- write in (last_chunk +1) )
+
+    //last_chunk.chnks -- file with single number -- last chunk index
+    //if no free chunks -- write in (last_chunk +1) )
     std::ofstream lastchunk_str;
     lastchunk_str.open("last_chunk.chnks");
+
     //free.chnks -- file with free chunks
     std::ofstream freechunks_str;
     freechunks_str.open("free.chnks");
 
     //write index
     write_index(index_str, index);
+
     //write free chunks
     write_free_chunks(freechunks_str, free_chunks);
+
     //write last_chunk
     lastchunk_str << last_chunk;
 }
 
-}
+} //namespace TestTask

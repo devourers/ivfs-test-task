@@ -11,8 +11,6 @@
 
 namespace TestTask{
 
-
-
 enum mode{
     readonly,
     writeonly
@@ -34,35 +32,44 @@ struct FileLocation{
 };
 
 
-//helper functions for file parsing and writing
-std::pair<std::string, FileLocation> parse_idx_line(const std::string& line);
-
-void parse_idx(const std::string& file, std::map<std::string, FileLocation>& index);
-
-void parse_free_chunks(const std::string& file, std::vector<size_t>& chunks);
-
-void write_index(std::ofstream& file, std::map<std::string, FileLocation> index);
-
-void write_free_chunks(std::ofstream& file, std::vector<size_t> free_chunks);
-
 struct IVFS{
-    std::map<const char*, std::pair<mode, size_t>> opened; //map of opened files
-    std::map<std::string, FileLocation> index = {}; //map of file locations in VFS
-    std::vector<size_t> free_chunks = {}; //free chunks in file
-    size_t last_chunk = 0; //index of last free chunk -- overwritten we all chunks before it are full
+
+    //map of opened files
+    std::map<const char*, std::pair<mode, size_t>> opened;
+    //map of file locations in VFS
+    std::map<std::string, FileLocation> index = {};
+    //free chunks in file
+    std::vector<size_t> free_chunks = {};
+    //index of last free chunk -- overwritten we all chunks before it are full
+    size_t last_chunk = 0;
 
     IVFS();
 
-    File* Open(const char* name);
+    File* Open(
+            const char* name
+            );
 
-    File* Create(const char* name);
+    File* Create(
+            const char* name
+            );
 
-    size_t Read(File *f, char *buff, size_t len);
+    size_t Read(
+            File *f,
+            char *buff,
+            size_t len
+            );
 
-    size_t Write(File *f, char *buff, size_t len);
+    size_t Write(
+            File *f,
+            char *buff,
+            size_t len
+            );
 
-    void Close(File *f);
+    void Close(
+            File *f
+            );
 
     void CloseIVFS();
 };
-}
+
+} //namespace TestTask
